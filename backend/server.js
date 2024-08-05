@@ -31,3 +31,15 @@ app.use("/api/auth",authRoutes)
 app.listen(PORT, () => {
     console.log("server is running at port " + PORT)
 })
+
+//error handler
+app.use((err,req,res,next)=>{
+    const statusCode=err.statusCode ||500
+    const message=err.message|| "internal server error"
+
+    return res.status(statusCode).json({
+        success:false,
+        statusCode,
+        message,
+    })
+})
