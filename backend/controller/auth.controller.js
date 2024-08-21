@@ -1,102 +1,90 @@
 import User from "../models/user.model.js"
 import bcryptjs from "bcryptjs"
-import jwt from  "jsonwebtoken"
+import jwt from "jsonwebtoken"
 import { errorHandler } from "../utils/error.js"
 
+export const signup = async (req, res, next) => {
+  const { username, email, password, confirmPassword, gender } = req.body
 
+  let validUser
 
-export const signup = async(req,res,next) => {
-    const {username,email,password,confirmPassword,gender}=req.body
+  validUser = await User.findOne({ email })
 
-    let validUser
-    validUser=await User.findOne({email})
+  if (validUser) {
+    return next(errorHandler(400, "User already exists"))
+  }
 
-    if(validUser){
-        // return res.status(400).json({
-        //     success:false,
-        //     message:"User already exist"
-        // })
-        return next(errorHandler(400,"User already exist"))
-    }
+  if (password !== confirmPassword) {
+    return next(errorHandler(400, "Password don't match"))
+  }
 
-    if(password!==confirmPassword){
-        // return res.status(400).json({
-        //     error:"Password don't match",
-        // })
-        return next(errorHandler(400,"Password dont match"))
+  const hashedPassword = bcryptjs.hashSync(password, 10)
 
-    }
+  const boyProfilePic = `https://avatar.iran.liara.run/public/boy?username=${username}`
+  const girlProfilePic = `https://avatar.iran.liara.run/public/girl?username=${username}`
 
-    const hashedPassword=bcryptjs.hashSync(password,10)
+  const newUser = new User({
+    username,
+    email,
+    password: hashedPassword,
+    gender,
+    profilePic: gender === "male" ? boyProfilePic : girlProfilePic,
+  })
 
-    const boyProfilePic=`https://avatar.iran.liara.run/public/boy?username=${username}`
-    const girlProfilePic=`https://avatar.iran.liara.run/public/girl?username=${username}`
+  try {
+    // generate jwt token
+    const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET)
 
-    const newUser = new User({
-        username,
-        email,
-        password: hashedPassword,
-        gender,
-        profilePic:gender === "male" ? boyProfilePic:girlProfilePic
+    await newUser.save()
+
+    res.cookie("access_token", token, { httpOnly: true }).status(201).json({
+      _id: newUser._id,
+      username: newUser.username,
+      email: newUser.email,
+      profilePic: newUser.profilePic,
     })
-
-    try {
-        //generate jwt token
-        const token=jwt.sign({id: newUser._id},process.env.JWT_SECRET)
-
-        await newUser.save()
-
-        res.cookie("access_token",token,{httpOnly:true}).status(201).json({
-            _id:newUser._id,
-            username:newUser.username,
-            email:newUser.email,
-            profilePic:newUser.profilePic,
-        })
-    } catch (error) {
-        // console.log("Error "+error)
-        // res.status(500).json({
-        //     error:"Internal server error",
-        // })
-        next(error)
-    }
-}
- 
-export const login = async(req,res,next) => {
-    try {
-        const {email,password}=req.body
-
-        const validUser=await User.findOne({email})
-
-        if(!validUser){
-            return next(errorHandler(404,"user not found"))
-        }
-
-        const validPassword=bcryptjs.compareSync(password,validUser.password)
-
-        if(!validPassword){
-            return next(errorHandler(401,"wrong credentials"))
-        }
-
-        const token=jwt.sign({id:validUser._id},process.env.JWT_SECRET)
-
-        res.cookie("access_token",token,{httpOnly:true}).status(200).json({
-            _id:validUser._id,
-            username:validUser.username,
-            email:validUser.email,
-            profilePic:validUser.profilePic,
-        })
-    } catch (error) {
-        next(error)
-    }
+  } catch (error) {
+    next(error)
+  }
 }
 
-export const logout = (req,res) => {
-    try {
-        res.clearCookie("access_token")
-        res.status(200).json({
-            message:"User has been logged out successfully!"
-        })
-    } catch (error) {
-        next(error)
+export const login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body
+
+    const validUser = await User.findOne({ email })
+
+    if (!validUser) {
+      return next(errorHandler(404, "User not found"))
     }
+
+    const validPassword = bcryptjs.compareSync(password, validUser.password)
+
+    if (!validPassword) {
+      return next(errorHandler(401, "Wrong Credentials"))
+    }
+
+    const token = jwt.sign({ id: validUser._id }, process.env.JWT_SECRET)
+
+    res.cookie("access_token", token, { httpOnly: true }).status(200).json({
+      _id: validUser._id,
+      username: validUser.username,
+      email: validUser.email,
+      profilePic: validUser.profilePic,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const logout = (req, res) => {
+  try {
+    res.clearCookie("access_token")
+
+    res.status(200).json({
+      message: "User has been loggged out successfully!",
+    })
+  } catch (error) {
+    next(error)
+  }
 }
